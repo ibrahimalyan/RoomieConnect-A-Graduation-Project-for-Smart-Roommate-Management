@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1042141812512",
+    "project_id": "rommate-4c226",
+    "storage_bucket": "rommate-4c226.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1042141812512:android:a9cb48f60a1a3da085a945",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBF0giw-_NgfIPc2dL1QwTWV_JMhE3r9Xk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
