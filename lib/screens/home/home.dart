@@ -1,46 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_application_1/services/auth.dart';
+import 'package:flutter_application_1/utils/notification_service.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final AuthService _auth = AuthService();
+  String? firstName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserFirstName();
+  }
+
+  Future<void> _loadUserFirstName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists) {
+        setState(() {
+          firstName = doc['firstName'];
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final AuthService _auth = AuthService(); // Initialize auth service
-    final ThemeData theme = Theme.of(context); // Get the current theme
-    final TextTheme textTheme = theme.textTheme; // Get text theme
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        // Title uses AppBarTheme's titleTextStyle
         title: const Text('Roommate Management'),
-        // centerTitle is set in AppBarTheme
-        // backgroundColor and foregroundColor are set in AppBarTheme
         actions: [
           IconButton(
-            // Icon color inherits from AppBarTheme's foregroundColor
-            icon: const Icon(Icons.group),
-            onPressed: () {
-              Navigator.pushNamed(
-                  context, '/roommates'); // Navigate to Roommates
+            icon: const Icon(Icons.notifications),
+            onPressed: () async {
+              await showReminderNotification(
+                '🔔 Test Notification',
+                'This is a test local notification from Roommate App.',
+              );
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.group),
+            onPressed: () => Navigator.pushNamed(context, '/roommates'),
+          ),
           GestureDetector(
-            onTap: () {
-              Navigator.pushNamed(context, '/profile'); // Navigate to Profile
-            },
+            onTap: () => Navigator.pushNamed(context, '/profile'),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12.0),
               child: CircleAvatar(
                 radius: 18,
-                // Use theme colors
                 backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.8),
                 child: Icon(Icons.person, color: theme.colorScheme.primary),
               ),
             ),
           ),
           IconButton(
-            // Icon color inherits from AppBarTheme's foregroundColor
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await _auth.signOut();
@@ -50,83 +79,51 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      // scaffoldBackgroundColor is set in the theme
-      body: Padding(
-        padding: const EdgeInsets.all(12.0), // Reduced padding
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hello, Ibrahim! ✨', // TODO: Replace with dynamic user name
-              // Use text theme style
+              firstName != null ? 'Hello, $firstName! ✨' : 'Hello! ✨',
               style: textTheme.headlineMedium,
             ),
-            const SizedBox(height: 8), // Reduced spacing
+            const SizedBox(height: 8),
             Text(
               'What would you like to do today?',
-              // Use text theme style
               style: textTheme.titleMedium,
             ),
-            const SizedBox(height: 16), // Reduced spacing
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 3, // Changed from 2 to 3
-                mainAxisSpacing: 12, // Reduced spacing
-                crossAxisSpacing: 12, // Reduced spacing
-                childAspectRatio: 1.0, // Adjust aspect ratio if needed (width / height)
-                physics: const NeverScrollableScrollPhysics(), // Disable scrolling if we expect it to fit
-                children: [
-                  _buildFeatureCard(
-                    context,
-                    Icons.shopping_cart,
-                    'Shopping',
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 3,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.0,
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              children: [
+                _buildFeatureCard(context, Icons.shopping_cart, 'Shopping', () {
+                  Navigator.pushNamed(context, '/shopping');
+                }),
+                _buildFeatureCard(context, Icons.task_alt, 'Tasks', () {
+                  Navigator.pushNamed(context, '/tasks');
+                }),
+                _buildFeatureCard(context, Icons.payments, 'Bills & Payments',
                     () {
-                      Navigator.pushNamed(
-                          context, '/shopping'); // ✅ Navigate to Shopping page
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    Icons.task_alt,
-                    'Tasks',
+                  Navigator.pushNamed(context, '/bills');
+                }),
+                _buildFeatureCard(context, Icons.calendar_today, 'Calendar',
                     () {
-                      Navigator.pushNamed(context, '/tasks');
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    Icons.payments,
-                    'Bills & Payments',
-                    () {
-                      Navigator.pushNamed(context, '/bills');
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    Icons.calendar_today,
-                    'Calendar',
-                    () {
-                      Navigator.pushNamed(context, '/calendar');
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    Icons.chat,
-                    'Chat',
-                    () {
-                      Navigator.pushNamed(context, '/chat');
-                    },
-                  ),
-                  _buildFeatureCard(
-                    context,
-                    Icons.notifications_active,
-                    'Reminders',
-                    () {
-                      Navigator.pushNamed(context, '/reminders');
-                    },
-                  ),
-                ],
-              ),
+                  Navigator.pushNamed(context, '/calendar');
+                }),
+                _buildFeatureCard(context, Icons.chat, 'Chat', () {
+                  Navigator.pushNamed(context, '/chat');
+                }),
+                _buildFeatureCard(
+                    context, Icons.notifications_active, 'Reminders', () {
+                  Navigator.pushNamed(context, '/reminders');
+                }),
+              ],
             ),
           ],
         ),
@@ -140,34 +137,29 @@ class HomePage extends StatelessWidget {
     String label,
     VoidCallback onTap,
   ) {
-    final ThemeData theme = Theme.of(context);
-    final TextTheme textTheme = theme.textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
 
     return GestureDetector(
       onTap: onTap,
-      // Card styling (elevation, shape, color, margin) is inherited from CardTheme
       child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 40, // Reduced icon size from 50
-                // Use theme color
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(height: 8), // Reduced spacing
+              Icon(icon, size: 40, color: theme.colorScheme.primary),
+              const SizedBox(height: 8),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0), // Add padding for text wrapping
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
                 child: Text(
                   label,
                   textAlign: TextAlign.center,
-                  // Use text theme style, maybe slightly smaller
                   style: textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.primary, // Or onSurfaceColor
+                    color: theme.colorScheme.primary,
                   ),
-                  maxLines: 2, // Allow text wrapping
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               )
@@ -178,4 +170,3 @@ class HomePage extends StatelessWidget {
     );
   }
 }
-

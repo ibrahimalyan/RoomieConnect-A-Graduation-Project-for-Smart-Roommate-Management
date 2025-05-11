@@ -1,30 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart'; // Import your Firebase options
-import 'package:flutter_application_1/theme/theme.dart'; // Import the theme
-import 'package:flutter_gemini/flutter_gemini.dart'; // Import Gemini
-import 'package:flutter_application_1/config/api_keys.dart'; // Import API Key
+import 'package:provider/provider.dart';
+import 'package:flutter_gemini/flutter_gemini.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tzData;
 
+import 'firebase_options.dart';
+import 'package:flutter_application_1/config/api_keys.dart';
 import 'package:flutter_application_1/services/auth.dart';
-import 'package:flutter_application_1/screens/wrapper.dart';
-import 'package:flutter_application_1/screens/profile/profile_screen.dart'; // Import your profile screen
-import 'package:flutter_application_1/screens/roommates/roommates_screen.dart'; // Import your roommates screen
-import 'package:flutter_application_1/screens/shopping/shopping_list.dart'; // Import your shopping list screen
-import 'package:flutter_application_1/screens/tasks/tasks_page.dart'; // Import your tasks page
-import 'package:flutter_application_1/screens/chat/chat_page.dart'; // Import your chat page
-import 'package:flutter_application_1/screens/calendar/calendar_page.dart'; // Import your calendar page
-import 'package:flutter_application_1/screens/bills/bills_page.dart'; // Import your bills page
-import 'package:flutter_application_1/screens/reminders/reminders_page.dart'; // Import your reminders page
+import 'package:flutter_application_1/theme/theme.dart';
 
-void main() async {
+// Screens
+import 'package:flutter_application_1/screens/wrapper.dart';
+import 'package:flutter_application_1/screens/profile/profile_screen.dart';
+import 'package:flutter_application_1/screens/roommates/roommates_screen.dart';
+import 'package:flutter_application_1/screens/shopping/shopping_list.dart';
+import 'package:flutter_application_1/screens/tasks/tasks_page.dart';
+import 'package:flutter_application_1/screens/chat/chat_page.dart';
+import 'package:flutter_application_1/screens/calendar/calendar_page.dart';
+import 'package:flutter_application_1/screens/bills/bills_page.dart';
+import 'package:flutter_application_1/screens/reminders/reminders_page.dart';
+
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase init
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  // Initialize Gemini with the API key
+
+  // Gemini AI init
   Gemini.init(apiKey: geminiApiKey);
+
+  // Timezone init for scheduling notifications
+  tzData.initializeTimeZones();
+
+  // Local notification setup
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
   runApp(const FlutterApplication1());
 }
@@ -38,19 +61,19 @@ class FlutterApplication1 extends StatelessWidget {
       value: AuthService().user,
       initialData: null,
       child: MaterialApp(
-        theme: buildAppTheme(), // Apply the custom theme
+        theme: buildAppTheme(),
         debugShowCheckedModeBanner: false,
-        initialRoute: '/', // Start at Wrapper
+        initialRoute: '/',
         routes: {
-          '/': (context) => Wrapper(), // 👈 Wrapper is initial
+          '/': (context) => Wrapper(),
           '/profile': (context) => ProfileScreen(),
           '/roommates': (context) => RoommatesScreen(),
           '/shopping': (context) => ShoppingListPage(),
-          '/tasks': (context) => const TasksPage(), // ✅ Add this
-          '/chat': (context) => const ChatPage(), // ✅ Add this
-          '/calendar': (context) => const CalendarPage(),
-          '/bills': (context) => const BillsPage(), // ✅ Add this\
-          '/reminders': (context) => const RemindersPage(), // ✅ Add this
+          '/tasks': (context) => TasksPage(),
+          '/chat': (context) => ChatPage(),
+          '/calendar': (context) => CalendarPage(),
+          '/bills': (context) => BillsPage(),
+          '/reminders': (context) => RemindersPage(),
         },
       ),
     );
