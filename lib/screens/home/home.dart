@@ -12,6 +12,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+/// HomePage widget that serves as the main screen of the app.
+
 class _HomePageState extends State<HomePage> {
   final AuthService _auth = AuthService();
   String? firstName;
@@ -31,7 +33,7 @@ class _HomePageState extends State<HomePage> {
           .get();
       if (doc.exists) {
         setState(() {
-          firstName = doc['firstName'];
+          firstName = doc['firstNam'];
         });
       }
     }
