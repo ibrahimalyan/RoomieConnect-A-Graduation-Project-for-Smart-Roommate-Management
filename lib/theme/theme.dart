@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// Define the color scheme
-const Color primaryColor = Color(0xFF6200EE); // Example Purple
-const Color secondaryColor = Color(0xFF03DAC6); // Example Teal
-const Color accentColor = Color(0xFFFFD700); // Example Gold
-const Color backgroundColor = Color(0xFFF5F5F5); // Light Grey Background
+/// Define blue color scheme
+const Color primaryColor = Color(0xFF1565C0); // Strong Blue
+const Color secondaryColor = Color(0xFF42A5F5); // Lighter Blue
+const Color accentColor = Color(0xFF90CAF9); // Light Blue
+const Color backgroundColor = Color(0xFFE3F2FD); // Very light blue background
 const Color surfaceColor = Colors.white;
-const Color errorColor = Color(0xFFB00020);
+const Color errorColor = Color(0xFFD32F2F); // Red for error
 const Color onPrimaryColor = Colors.white;
 const Color onSecondaryColor = Colors.black;
 const Color onBackgroundColor = Colors.black;
@@ -85,7 +85,8 @@ ThemeData buildAppTheme() {
       foregroundColor: onPrimaryColor, // Icon and title color
       elevation: 4.0,
       centerTitle: true,
-      titleTextStyle: customTextTheme.titleLarge?.copyWith(color: onPrimaryColor),
+      titleTextStyle:
+          customTextTheme.titleLarge?.copyWith(color: onPrimaryColor),
     ),
     cardTheme: CardTheme(
       elevation: 2.0,
@@ -120,4 +121,3 @@ ThemeData buildAppTheme() {
     // Add other widget themes as needed (e.g., floatingActionButtonTheme, bottomNavigationBarTheme)
   );
 }
-

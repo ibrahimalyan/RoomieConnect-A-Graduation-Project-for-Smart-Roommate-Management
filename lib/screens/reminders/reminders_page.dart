@@ -2,7 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_gemini/flutter_gemini.dart'; // Import Gemini
+import 'package:flutter_gemini/flutter_gemini.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tzData;
+import 'package:timezone/timezone.dart' as tz;
+
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+void initializeTimeZones() {
+  tzData.initializeTimeZones();
+}
+
+Future<void> scheduleReminderNotification({
+  required int id,
+  required String title,
+  required String body,
+  required DateTime scheduledTime,
+  bool repeatWeekly = false,
+}) async {
+  final tz.TZDateTime tzScheduledTime =
+      tz.TZDateTime.from(scheduledTime, tz.local);
+
+  await flutterLocalNotificationsPlugin.zonedSchedule(
+    id,
+    title,
+    body,
+    tzScheduledTime,
+    const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'reminder_channel_id',
+        'Reminders',
+        channelDescription: 'Scheduled reminders',
+        importance: Importance.max,
+        priority: Priority.high,
+      ),
+    ),
+    androidAllowWhileIdle: true,
+    uiLocalNotificationDateInterpretation:
+        UILocalNotificationDateInterpretation.absoluteTime,
+    matchDateTimeComponents:
+        repeatWeekly ? DateTimeComponents.dayOfWeekAndTime : null,
+  );
+}
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({Key? key}) : super(key: key);
@@ -13,31 +55,16 @@ class RemindersPage extends StatefulWidget {
 
 class _RemindersPageState extends State<RemindersPage> {
   final TextEditingController _reminderController = TextEditingController();
-  final TextEditingController _roommateNameController =
-      TextEditingController(); // Added for roommate name
+  final TextEditingController _roommateNameController = TextEditingController();
   DateTime? _selectedDate;
-  String _selectedTone = 'friendly'; // Default tone
-  bool _isLoadingAi = false; // To show loading indicator
+  TimeOfDay? _selectedTime;
+  String _repeatFrequency = 'none';
+  String _selectedTone = 'friendly';
+  bool _isLoadingAi = false;
 
   final CollectionReference remindersCollection =
       FirebaseFirestore.instance.collection('reminders');
-  final Gemini gemini = Gemini.instance; // Gemini instance
-
-  void _addReminder() {
-    if (_reminderController.text.isNotEmpty && _selectedDate != null) {
-      remindersCollection.add({
-        'text': _reminderController.text.trim(),
-        'date': Timestamp.fromDate(_selectedDate!),
-        'timestamp': FieldValue.serverTimestamp(),
-        'uid': FirebaseAuth.instance.currentUser!.uid,
-        // Consider adding roommate name and tone if needed for display
-      });
-      _reminderController.clear();
-      _roommateNameController.clear();
-      _selectedDate = null;
-      setState(() {}); // Update UI
-    }
-  }
+  final Gemini gemini = Gemini.instance;
 
   Future<void> _pickDate(BuildContext context) async {
     DateTime now = DateTime.now();
@@ -52,43 +79,39 @@ class _RemindersPageState extends State<RemindersPage> {
     }
   }
 
+  Future<void> _pickTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() => _selectedTime = picked);
+    }
+  }
+
   void _deleteReminder(String docId) {
     remindersCollection.doc(docId).delete();
   }
 
-  // Function to generate reminder using Gemini
   Future<void> _generateReminder() async {
-    if (_reminderController.text.isEmpty) {
+    if (_reminderController.text.isEmpty ||
+        _roommateNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Please enter the task description first.')),
-      );
-      return;
-    }
-    if (_roommateNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the roommate\'s name.')),
+            content: Text('Please enter both task and roommate name.')),
       );
       return;
     }
 
     setState(() => _isLoadingAi = true);
 
-    String task = _reminderController.text.trim();
-    String roommateName = _roommateNameController.text.trim();
-
-    // Construct the prompt
     String prompt =
-        "Generate a reminder message for my roommate, $roommateName, about the task: '$task'. "
-        "The tone should be $_selectedTone. Keep it concise.";
+        "Generate a reminder message for my roommate, ${_roommateNameController.text.trim()}, about the task: '${_reminderController.text.trim()}'. The tone should be $_selectedTone. Keep it concise.";
 
     try {
-      final response = await gemini.text(prompt); // ✅ Fixed here
-
+      final response = await gemini.text(prompt);
       String? generatedText = response?.output?.trim();
-
       if (generatedText != null && generatedText.isNotEmpty) {
-        // Update the reminder text field with the generated text
         _reminderController.text = generatedText;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -98,12 +121,45 @@ class _RemindersPageState extends State<RemindersPage> {
         );
       }
     } catch (e) {
-      print('Error generating reminder: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error generating reminder: ${e.toString()}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
     } finally {
       setState(() => _isLoadingAi = false);
+    }
+  }
+
+  Future<void> _addReminder() async {
+    if (_reminderController.text.isNotEmpty &&
+        _selectedDate != null &&
+        _selectedTime != null) {
+      final DateTime fullDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      remindersCollection.add({
+        'text': _reminderController.text.trim(),
+        'date': Timestamp.fromDate(fullDateTime),
+        'repeat': _repeatFrequency,
+        'uid': FirebaseAuth.instance.currentUser!.uid,
+      });
+
+      await scheduleReminderNotification(
+        id: fullDateTime.hashCode,
+        title: 'Reminder',
+        body: _reminderController.text.trim(),
+        scheduledTime: fullDateTime,
+        repeatWeekly: _repeatFrequency == 'weekly',
+      );
+
+      _reminderController.clear();
+      _roommateNameController.clear();
+      _selectedDate = null;
+      _selectedTime = null;
+      setState(() {});
     }
   }
 
@@ -113,45 +169,33 @@ class _RemindersPageState extends State<RemindersPage> {
     final TextTheme textTheme = theme.textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reminders'),
-      ),
+      appBar: AppBar(title: const Text('Reminders')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Roommate Name Input
             TextField(
               controller: _roommateNameController,
               decoration: const InputDecoration(hintText: 'Roommate Name...'),
             ),
             const SizedBox(height: 10),
-            // Reminder Text Input
             TextField(
               controller: _reminderController,
               decoration:
                   const InputDecoration(hintText: 'Task description...'),
-              maxLines: 3, // Allow more space for potentially longer AI text
+              maxLines: 3,
             ),
             const SizedBox(height: 10),
-            // Tone Selection and AI Generation Button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 DropdownButton<String>(
                   value: _selectedTone,
                   items: ['friendly', 'personal', 'less friendly']
-                      .map((tone) => DropdownMenuItem(
-                            value: tone,
-                            child: Text(tone[0].toUpperCase() +
-                                tone.substring(1)), // Capitalize
-                          ))
+                      .map((tone) =>
+                          DropdownMenuItem(value: tone, child: Text(tone)))
                       .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedTone = value);
-                    }
-                  },
+                  onChanged: (value) => setState(() => _selectedTone = value!),
                 ),
                 _isLoadingAi
                     ? const CircularProgressIndicator()
@@ -162,8 +206,6 @@ class _RemindersPageState extends State<RemindersPage> {
                       ),
               ],
             ),
-            const SizedBox(height: 10),
-            // Date Picker and Add Button
             Row(
               children: [
                 Expanded(
@@ -171,33 +213,36 @@ class _RemindersPageState extends State<RemindersPage> {
                     _selectedDate == null
                         ? 'Select Date'
                         : 'Date: ${DateFormat.yMMMd().format(_selectedDate!)}',
-                    style: textTheme.bodyMedium?.copyWith(
-                        color: _selectedDate == null
-                            ? Colors.grey
-                            : theme.primaryColor),
+                    style: textTheme.bodyMedium,
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.date_range, color: theme.primaryColor),
+                  icon: const Icon(Icons.date_range),
                   onPressed: () => _pickDate(context),
                 ),
                 IconButton(
-                  icon: Icon(Icons.add_circle,
-                      color: theme.primaryColor, size: 30),
-                  onPressed: _addReminder,
-                  tooltip: 'Add Reminder',
+                  icon: const Icon(Icons.access_time),
+                  onPressed: () => _pickTime(context),
                 ),
               ],
             ),
+            DropdownButton<String>(
+              value: _repeatFrequency,
+              items: ['none', 'weekly']
+                  .map((freq) =>
+                      DropdownMenuItem(value: freq, child: Text(freq)))
+                  .toList(),
+              onChanged: (value) => setState(() => _repeatFrequency = value!),
+            ),
+            IconButton(
+              icon: Icon(Icons.add_circle, size: 30, color: theme.primaryColor),
+              onPressed: _addReminder,
+            ),
             const SizedBox(height: 20),
-            // Reminder List
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: remindersCollection.orderBy('date').snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                     return const Center(child: Text('No reminders yet.'));
                   }
@@ -209,16 +254,17 @@ class _RemindersPageState extends State<RemindersPage> {
                     itemBuilder: (context, index) {
                       final doc = reminders[index];
                       final data = doc.data() as Map<String, dynamic>;
+                      final repeat = data['repeat'] ?? 'none';
+                      final date = (data['date'] as Timestamp).toDate();
 
                       return Card(
-                        // Use Card for better UI
                         margin: const EdgeInsets.symmetric(vertical: 4.0),
                         child: ListTile(
                           title: Text(data['text'] ?? '',
                               style: textTheme.bodyLarge),
                           subtitle: Text(
-                            DateFormat.yMMMd()
-                                .format((data['date'] as Timestamp).toDate()),
+                            '${DateFormat.yMMMd().add_jm().format(date)}' +
+                                (repeat != 'none' ? ' • repeats $repeat' : ''),
                             style: textTheme.bodySmall
                                 ?.copyWith(color: Colors.grey[600]),
                           ),
@@ -226,7 +272,6 @@ class _RemindersPageState extends State<RemindersPage> {
                             icon: Icon(Icons.delete,
                                 color: theme.colorScheme.error),
                             onPressed: () => _deleteReminder(doc.id),
-                            tooltip: 'Delete Reminder',
                           ),
                         ),
                       );

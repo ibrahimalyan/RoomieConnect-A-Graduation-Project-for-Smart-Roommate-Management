@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_application_1/services/auth.dart';
 import 'package:flutter_application_1/utils/notification_service.dart';
+import 'package:flutter/foundation.dart'; // for kIsWeb
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -48,10 +49,19 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () async {
-              await showReminderNotification(
-                '🔔 Test Notification',
-                'This is a test local notification from Roommate App.',
-              );
+              if (kIsWeb) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content:
+                        Text('🔔 This would show a notification on mobile!'),
+                  ),
+                );
+              } else {
+                await showReminderNotification(
+                  '🔔 Test Notification',
+                  'This is a test local notification from Roommate App.',
+                );
+              }
             },
           ),
           IconButton(

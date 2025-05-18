@@ -44,7 +44,6 @@ class AuthService {
     }
   }
 
-  // 🚀 ADD THIS FORGOT PASSWORD FUNCTION
   Future sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
