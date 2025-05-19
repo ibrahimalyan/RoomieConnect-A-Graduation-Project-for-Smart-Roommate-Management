@@ -43,6 +43,9 @@ dependencies:
   flutter_gemini: ^3.0.0 # For Gemini AI integration
   flutter_local_notifications: ^16.1.0
   permission_handler: ^11.0.0
+  emoji_picker_flutter: ^1.6.2 # Or latest version
+
+
 
 
 
