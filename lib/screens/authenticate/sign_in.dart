@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/services/auth.dart';
 import 'package:flutter_application_1/screens/wrapper.dart';
@@ -14,124 +16,177 @@ class _SignInState extends State<SignIn> {
   final AuthService _auth = AuthService();
   final _formKey = GlobalKey<FormState>();
 
-  // Text field state
   String email = '';
   String password = '';
   String error = '';
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final TextTheme textTheme = theme.textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
 
     return Scaffold(
-      // AppBar styling is inherited from theme
       appBar: AppBar(
-        title: const Text('Sign In'),
-        actions: [
-          TextButton.icon(
-            // Use theme colors for consistency
-            style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.onPrimary,
-            ),
-            icon: const Icon(Icons.person),
-            label: const Text('Register'),
-            onPressed: () {
-              widget.toggleView();
-            },
-          ),
-        ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 50.0, vertical: 20.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              const SizedBox(height: 20),
-              TextFormField(
-                // InputDecoration is styled by theme
-                decoration: const InputDecoration(labelText: 'Email'), // Use labelText for better UX
-                validator: (val) => val!.isEmpty ? 'Enter an email' : null,
-                onChanged: (val) {
-                  setState(() => email = val);
-                },
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                // InputDecoration is styled by theme
-                decoration: const InputDecoration(labelText: 'Password'), // Use labelText
-                obscureText: true,
-                validator: (val) =>
-                    val!.length < 6 ? 'Enter a password 6+ chars long' : null,
-                onChanged: (val) {
-                  setState(() => password = val);
-                },
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () async {
-                    await _showPasswordResetDialog(context, theme, textTheme);
-                  },
-                  child: Text(
-                    'Forgot Password?',
-                    style: textTheme.bodyMedium?.copyWith(color: theme.primaryColor),
+      extendBodyBehindAppBar: true,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF73C8A9), Color(0xFF373B44)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Welcome Roomie',
+                            style: textTheme.headlineMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white.withOpacity(0.3),
+                            prefixIcon: const Icon(Icons.email),
+                            labelText: 'Email',
+                            labelStyle: const TextStyle(color: Colors.white),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          validator: (val) =>
+                              val!.isEmpty ? 'Enter an email' : null,
+                          onChanged: (val) => setState(() => email = val),
+                          keyboardType: TextInputType.emailAddress,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white.withOpacity(0.3),
+                            prefixIcon: const Icon(Icons.lock),
+                            labelText: 'Password',
+                            labelStyle: const TextStyle(color: Colors.white),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          obscureText: true,
+                          validator: (val) => val!.length < 6
+                              ? 'Password must be 6+ characters'
+                              : null,
+                          onChanged: (val) => setState(() => password = val),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () async {
+                              await _showPasswordResetDialog(
+                                  context, theme, textTheme);
+                            },
+                            child: Text(
+                              'Forgot Password?',
+                              style: textTheme.bodyMedium
+                                  ?.copyWith(color: Colors.white70),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: theme.primaryColor,
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Sign In'),
+                          onPressed: () async {
+                            if (_formKey.currentState!.validate()) {
+                              dynamic result =
+                                  await _auth.signInWithEmailAndPassword(
+                                      email.trim(), password.trim());
+                              if (result == null) {
+                                setState(() => error =
+                                    'Could not sign in with those credentials');
+                              } else {
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                      builder: (context) => Wrapper()),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        if (error.isNotEmpty)
+                          Text(
+                            error,
+                            style: textTheme.bodyMedium
+                                ?.copyWith(color: theme.colorScheme.error),
+                            textAlign: TextAlign.center,
+                          ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => widget.toggleView(),
+                          child: const Text(
+                            "Don't have an account? Register",
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                // Style is inherited from theme
-                child: const Text('Sign In'), // Text style from theme
-                onPressed: () async {
-                  if (_formKey.currentState!.validate()) {
-                    dynamic result = await _auth.signInWithEmailAndPassword(
-                        email.trim(), password.trim());
-                    if (result == null) {
-                      setState(() =>
-                          error = 'Could not sign in with those credentials');
-                    } else {
-                      // Navigate to Wrapper on success
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => Wrapper()),
-                      );
-                    }
-                  }
-                },
-                // Remove specific style if theme is sufficient
-                // style: ElevatedButton.styleFrom(...)
-              ),
-              const SizedBox(height: 12),
-              if (error.isNotEmpty)
-                Text(
-                  error,
-                  // Use theme color and style for errors
-                  style: textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
-                  textAlign: TextAlign.center,
-                ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Future<void> _showPasswordResetDialog(BuildContext context, ThemeData theme, TextTheme textTheme) async {
+  Future<void> _showPasswordResetDialog(
+      BuildContext context, ThemeData theme, TextTheme textTheme) async {
     TextEditingController resetEmailController = TextEditingController();
     return showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          // Use theme styles for AlertDialog
           backgroundColor: theme.dialogBackgroundColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
           title: Text('Reset Password', style: textTheme.titleLarge),
           content: TextField(
             controller: resetEmailController,
-            // InputDecoration styled by theme
             decoration: const InputDecoration(labelText: 'Enter your email'),
             keyboardType: TextInputType.emailAddress,
           ),
@@ -141,33 +196,38 @@ class _SignInState extends State<SignIn> {
               onPressed: () {
                 Navigator.pop(context);
               },
-              // Style using theme
               style: TextButton.styleFrom(foregroundColor: theme.primaryColor),
             ),
             ElevatedButton(
-              // Style inherited from theme
               child: const Text('Send Email'),
               onPressed: () async {
                 if (resetEmailController.text.trim().isEmpty) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     SnackBar(content: Text('Please enter your email.', style: TextStyle(color: theme.colorScheme.onError)), backgroundColor: theme.colorScheme.error),
-                   );
-                   return; // Don't proceed if email is empty
-                }
-                try {
-                  await _auth.sendPasswordResetEmail(resetEmailController.text.trim());
-                  Navigator.pop(context); // Close dialog
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Reset email sent! Check your inbox.', style: TextStyle(color: theme.colorScheme.onSecondary)),
+                        content: Text('Please enter your email.',
+                            style: TextStyle(color: theme.colorScheme.onError)),
+                        backgroundColor: theme.colorScheme.error),
+                  );
+                  return;
+                }
+                try {
+                  await _auth
+                      .sendPasswordResetEmail(resetEmailController.text.trim());
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Reset email sent! Check your inbox.',
+                          style:
+                              TextStyle(color: theme.colorScheme.onSecondary)),
                       backgroundColor: theme.colorScheme.secondary,
                     ),
                   );
                 } catch (e) {
-                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Error: ${e.toString()}', style: TextStyle(color: theme.colorScheme.onError)),
+                      content: Text('Error: ${e.toString()}',
+                          style: TextStyle(color: theme.colorScheme.onError)),
                       backgroundColor: theme.colorScheme.error,
                     ),
                   );
@@ -180,4 +240,3 @@ class _SignInState extends State<SignIn> {
     );
   }
 }
-
