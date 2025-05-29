@@ -16,14 +16,17 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
   final CollectionReference usersCollection =
       FirebaseFirestore.instance.collection('users');
 
+  String _statusFilter = 'open'; // 'open' or 'closed'
+  String _assignmentFilter = 'all'; // 'all' or 'personal'
+
   void _addItem() {
     if (_controller.text.isNotEmpty) {
       shoppingCollection.add({
         'item': _controller.text.trim(),
         'timestamp': FieldValue.serverTimestamp(),
         'uid': FirebaseAuth.instance.currentUser!.uid,
-        'status': 'pending', // pending, in-progress, done
-        'assignedTo': null, // UID of the roommate it's assigned to
+        'status': 'pending',
+        'assignedTo': null,
       });
       _controller.clear();
     }
@@ -53,13 +56,10 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
   }
 
   Future<void> _assignToRoommate(BuildContext context, String docId) async {
-    final ThemeData theme = Theme.of(context);
-    final TextTheme textTheme = theme.textTheme;
-
     final roommatesSnapshot = await usersCollection.get();
     final roommates = roommatesSnapshot.docs
         .where((doc) => doc.id != FirebaseAuth.instance.currentUser!.uid)
-        .toList(); // Exclude current user
+        .toList();
 
     if (roommates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -72,13 +72,12 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
     final selected = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: Text('Assign to Roommate', style: textTheme.titleLarge),
+        title: const Text('Assign to Roommate'),
         children: roommates.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, doc.id),
-            child: Text(data['firstName'] ?? 'Unnamed User',
-                style: textTheme.bodyLarge),
+            child: Text(data['firstName'] ?? 'Unnamed User'),
           );
         }).toList(),
       ),
@@ -92,18 +91,13 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
     }
   }
 
-//ddd
-
   Future<bool> _showConfirmationDialog(
       BuildContext context, String title, String content) async {
-    final ThemeData theme = Theme.of(context);
-    final TextTheme textTheme = theme.textTheme;
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title, style: textTheme.titleLarge),
-        content: Text(content, style: textTheme.bodyMedium),
+        title: Text(title),
+        content: Text(content),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -128,16 +122,16 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
     return 'Unknown';
   }
 
-  Color _getStatusColor(String status, ThemeData theme) {
+  Color _getStatusColor(String status) {
     switch (status) {
       case 'pending':
         return Colors.orange.shade700;
       case 'in-progress':
-        return theme.colorScheme.secondary; // Teal accent
+        return Colors.teal;
       case 'done':
         return Colors.green.shade700;
       default:
-        return theme.textTheme.bodySmall!.color!;
+        return Colors.grey;
     }
   }
 
@@ -156,9 +150,6 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final TextTheme textTheme = theme.textTheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Shopping List')),
       body: Column(
@@ -172,7 +163,6 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                     controller: _controller,
                     decoration:
                         const InputDecoration(hintText: 'Add new item...'),
-                    style: textTheme.bodyLarge,
                     onFieldSubmitted: (_) => _addItem(),
                   ),
                 ),
@@ -185,6 +175,39 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                DropdownButton<String>(
+                  value: _statusFilter,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _statusFilter = value);
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(value: 'open', child: Text('Open')),
+                    DropdownMenuItem(value: 'closed', child: Text('Closed')),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                DropdownButton<String>(
+                  value: _assignmentFilter,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _assignmentFilter = value);
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All Items')),
+                    DropdownMenuItem(
+                        value: 'personal', child: Text('My Items')),
+                  ],
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: shoppingCollection
@@ -192,26 +215,36 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(
-                      child: Text('Something went wrong.',
-                          style: textTheme.bodyMedium));
+                  return const Center(child: Text('Something went wrong.'));
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final items = snapshot.data!.docs;
+                final currentUid = FirebaseAuth.instance.currentUser!.uid;
+                final items = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final status = data['status'] ?? 'pending';
+                  final assignedTo = data['assignedTo'];
+
+                  final statusMatch = _statusFilter == 'open'
+                      ? (status == 'pending' || status == 'in-progress')
+                      : status == 'done';
+
+                  final assignmentMatch = _assignmentFilter == 'all'
+                      ? true
+                      : assignedTo == currentUid;
+
+                  return statusMatch && assignmentMatch;
+                }).toList();
 
                 if (items.isEmpty) {
-                  return Center(
-                      child: Text('No items on the shopping list yet!',
-                          style: textTheme.headlineSmall
-                              ?.copyWith(color: theme.colorScheme.secondary)));
+                  return const Center(
+                      child: Text('No items match your filters.'));
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.only(
-                      bottom: 80.0), // Space for FAB if any or general padding
+                  padding: const EdgeInsets.only(bottom: 80.0),
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final doc = items[index];
@@ -222,21 +255,15 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                     final bool isDone = status == 'done';
 
                     return Card(
-                      // Using CardTheme from main theme
                       child: ListTile(
-                        leading: Icon(
-                          _getStatusIcon(status),
-                          color: _getStatusColor(status, theme),
-                          size: 28,
-                        ),
+                        leading: Icon(_getStatusIcon(status),
+                            color: _getStatusColor(status), size: 28),
                         title: Text(
                           itemText,
-                          style: textTheme.titleMedium?.copyWith(
+                          style: TextStyle(
                             decoration:
                                 isDone ? TextDecoration.lineThrough : null,
-                            color: isDone
-                                ? Colors.grey
-                                : textTheme.titleMedium?.color,
+                            color: isDone ? Colors.grey : null,
                           ),
                         ),
                         subtitle: FutureBuilder<String>(
@@ -245,15 +272,13 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                             final assignedToName =
                                 assignedSnapshot.data ?? 'Loading...';
                             return Text(
-                                'Status: ${status.toUpperCase()}\nAssigned to: $assignedToName',
-                                style: textTheme.bodySmall?.copyWith(
-                                    color: _getStatusColor(status, theme)));
+                              'Status: ${status.toUpperCase()}\nAssigned to: $assignedToName',
+                              style: TextStyle(color: _getStatusColor(status)),
+                            );
                           },
                         ),
                         isThreeLine: true,
                         trailing: PopupMenuButton<String>(
-                          icon: Icon(Icons.more_vert,
-                              color: theme.iconTheme.color),
                           onSelected: (value) {
                             if (value == 'mark_done') _markDone(doc.id);
                             if (value == 'assign')
@@ -261,39 +286,41 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                             if (value == 'take_on') _takeOn(doc.id);
                             if (value == 'delete') _removeItem(doc.id);
                           },
-                          itemBuilder: (BuildContext context) =>
-                              <PopupMenuEntry<String>>[
+                          itemBuilder: (context) => [
                             if (!isDone) ...[
-                              const PopupMenuItem<String>(
+                              const PopupMenuItem(
                                 value: 'mark_done',
                                 child: ListTile(
-                                    leading: Icon(Icons.check_circle_outline),
-                                    title: Text('Mark as Done')),
+                                  leading: Icon(Icons.check_circle_outline),
+                                  title: Text('Mark as Done'),
+                                ),
                               ),
-                              const PopupMenuItem<String>(
+                              const PopupMenuItem(
                                 value: 'assign',
                                 child: ListTile(
-                                    leading:
-                                        Icon(Icons.person_add_alt_1_outlined),
-                                    title: Text('Assign to Roommate')),
+                                  leading:
+                                      Icon(Icons.person_add_alt_1_outlined),
+                                  title: Text('Assign to Roommate'),
+                                ),
                               ),
-                              if (assignedToUid !=
-                                  FirebaseAuth.instance.currentUser!.uid)
-                                const PopupMenuItem<String>(
+                              if (assignedToUid != currentUid)
+                                const PopupMenuItem(
                                   value: 'take_on',
                                   child: ListTile(
-                                      leading: Icon(Icons.person_outline),
-                                      title: Text('Take On Myself')),
+                                    leading: Icon(Icons.person_outline),
+                                    title: Text('Take On Myself'),
+                                  ),
                                 ),
                             ],
                             const PopupMenuDivider(),
-                            const PopupMenuItem<String>(
+                            const PopupMenuItem(
                               value: 'delete',
                               child: ListTile(
-                                  leading: Icon(Icons.delete_outline,
-                                      color: Colors.red),
-                                  title: Text('Delete Item',
-                                      style: TextStyle(color: Colors.red))),
+                                leading: Icon(Icons.delete_outline,
+                                    color: Colors.red),
+                                title: Text('Delete Item',
+                                    style: TextStyle(color: Colors.red)),
+                              ),
                             ),
                           ],
                         ),
