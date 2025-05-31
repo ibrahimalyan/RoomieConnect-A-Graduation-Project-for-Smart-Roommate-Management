@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_gemini/flutter_gemini.dart';
 
 class ShoppingListPage extends StatefulWidget {
   const ShoppingListPage({Key? key}) : super(key: key);
@@ -16,6 +17,9 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
   final CollectionReference usersCollection =
       FirebaseFirestore.instance.collection('users');
 
+  final Gemini _gemini = Gemini.instance;
+  bool _loadingAI = false;
+
   String _statusFilter = 'open'; // 'open' or 'closed'
   String _assignmentFilter = 'all'; // 'all' or 'personal'
 
@@ -29,6 +33,41 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
         'assignedTo': null,
       });
       _controller.clear();
+    }
+  }
+
+  Future<void> _generateItemWithAI() async {
+    final input = _controller.text.trim();
+    if (input.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Type something first.')),
+      );
+      return;
+    }
+
+    setState(() => _loadingAI = true);
+
+    final prompt = '''
+Make this input suitable for a shared shopping list by rephrasing it as a short and clear item:
+"$input"
+''';
+
+    try {
+      final result = await _gemini.text(prompt);
+      final suggestion = result?.output?.trim();
+      if (suggestion != null && suggestion.isNotEmpty) {
+        _controller.text = suggestion;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('AI did not return a valid item.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI Error: $e')),
+      );
+    } finally {
+      setState(() => _loadingAI = false);
     }
   }
 
@@ -125,11 +164,11 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'pending':
-        return Colors.orange.shade700;
+        return Colors.deepOrangeAccent;
       case 'in-progress':
-        return Colors.teal;
+        return Colors.lightBlueAccent;
       case 'done':
-        return Colors.green.shade700;
+        return Colors.green;
       default:
         return Colors.grey;
     }
@@ -150,6 +189,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Shopping List')),
       body: Column(
@@ -166,11 +207,40 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                     onFieldSubmitted: (_) => _addItem(),
                   ),
                 ),
+                if (_loadingAI)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _generateItemWithAI,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('AI'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.add_shopping_cart_outlined),
                   label: const Text('Add'),
                   onPressed: _addItem,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
               ],
             ),

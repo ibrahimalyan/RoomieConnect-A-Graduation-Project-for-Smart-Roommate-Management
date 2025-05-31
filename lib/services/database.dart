@@ -1,3 +1,4 @@
+// Updated DatabaseService with room password and apartment name
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DatabaseService {
@@ -9,7 +10,6 @@ class DatabaseService {
   final CollectionReference roomCollection =
       FirebaseFirestore.instance.collection('rooms');
 
-  // Create or update user data
   Future updateUserData({
     required String firstName,
     required String lastName,
@@ -28,20 +28,48 @@ class DatabaseService {
     });
   }
 
-  // Create a new Room (only for Admin)
-  Future<String> createRoom() async {
+  Future<String> createRoom({
+    required String roomPassword,
+    required String apartmentName,
+  }) async {
     DocumentReference roomDoc = await roomCollection.add({
       'adminId': uid,
       'createdAt': FieldValue.serverTimestamp(),
       'members': [uid],
+      'roomPassword': roomPassword,
+      'apartmentName': apartmentName,
     });
-    return roomDoc.id; // return the room ID
+    return roomDoc.id;
   }
 
-  // Join an existing Room (for Members)
-  Future joinRoom(String roomId) async {
-    return await roomCollection.doc(roomId).update({
-      'members': FieldValue.arrayUnion([uid]),
-    });
+  Future<bool> joinRoom({
+    required String roomId,
+    required String enteredPassword,
+  }) async {
+    DocumentSnapshot roomSnapshot = await roomCollection.doc(roomId).get();
+
+    if (roomSnapshot.exists) {
+      String correctPassword = roomSnapshot['roomPassword'];
+      if (correctPassword == enteredPassword) {
+        await roomCollection.doc(roomId).update({
+          'members': FieldValue.arrayUnion([uid]),
+        });
+        return true;
+      } else {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  Future updateRoomPassword(String roomId, String newPassword) async {
+    DocumentSnapshot roomSnapshot = await roomCollection.doc(roomId).get();
+    if (roomSnapshot['adminId'] == uid) {
+      await roomCollection.doc(roomId).update({
+        'roomPassword': newPassword,
+      });
+    } else {
+      throw Exception("Only admin can change the password.");
+    }
   }
 }

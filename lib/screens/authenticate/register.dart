@@ -1,5 +1,5 @@
+// Updated Register widget with room password and apartment name
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_application_1/services/auth.dart';
@@ -24,7 +24,8 @@ class _RegisterState extends State<Register> {
   DateTime? birthday;
   bool isCreatingRoom = true;
   String roomId = '';
-
+  String roomPassword = '';
+  String apartmentName = '';
   String email = '';
   String password = '';
   String error = '';
@@ -98,6 +99,15 @@ class _RegisterState extends State<Register> {
                             onChanged: (val) => setState(() => roomId = val),
                           ),
                         const SizedBox(height: 10),
+                        if (isCreatingRoom)
+                          TextFormField(
+                            decoration: _inputDecoration('Apartment Name'),
+                            validator: (val) =>
+                                val!.isEmpty ? 'Enter apartment name' : null,
+                            onChanged: (val) =>
+                                setState(() => apartmentName = val),
+                          ),
+                        const SizedBox(height: 10),
                         TextFormField(
                           decoration: _inputDecoration('First Name'),
                           validator: (val) =>
@@ -164,6 +174,17 @@ class _RegisterState extends State<Register> {
                               : null,
                           onChanged: (val) => setState(() => password = val),
                         ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          decoration: _inputDecoration(isCreatingRoom
+                              ? 'Set Room Password'
+                              : 'Room Password'),
+                          obscureText: true,
+                          validator: (val) =>
+                              val!.isEmpty ? 'Enter room password' : null,
+                          onChanged: (val) =>
+                              setState(() => roomPassword = val),
+                        ),
                         const SizedBox(height: 20),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
@@ -188,11 +209,22 @@ class _RegisterState extends State<Register> {
                                 if (isCreatingRoom) {
                                   newRoomId =
                                       await DatabaseService(uid: result.uid)
-                                          .createRoom();
+                                          .createRoom(
+                                    roomPassword: roomPassword,
+                                    apartmentName: apartmentName,
+                                  );
                                   role = 'admin';
                                 } else {
-                                  await DatabaseService(uid: result.uid)
-                                      .joinRoom(roomId);
+                                  bool joined =
+                                      await DatabaseService(uid: result.uid)
+                                          .joinRoom(
+                                              roomId: roomId,
+                                              enteredPassword: roomPassword);
+                                  if (!joined) {
+                                    setState(() =>
+                                        error = 'Incorrect room password');
+                                    return;
+                                  }
                                 }
 
                                 await DatabaseService(uid: result.uid)
