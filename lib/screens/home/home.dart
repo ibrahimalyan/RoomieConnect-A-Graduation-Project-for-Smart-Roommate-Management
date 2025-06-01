@@ -1,9 +1,10 @@
+// HomePage with apartment name in the AppBar title
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_application_1/services/auth.dart';
 import 'package:flutter_application_1/utils/notification_service.dart';
-import 'package:flutter/foundation.dart'; // for kIsWeb
+import 'package:flutter/foundation.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -12,18 +13,18 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-
 class _HomePageState extends State<HomePage> {
   final AuthService _auth = AuthService();
   String? firstName;
+  String? apartmentName;
 
   @override
   void initState() {
     super.initState();
-    _loadUserFirstName();
+    _loadUserData();
   }
 
-  Future<void> _loadUserFirstName() async {
+  Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final doc = await FirebaseFirestore.instance
@@ -31,9 +32,21 @@ class _HomePageState extends State<HomePage> {
           .doc(user.uid)
           .get();
       if (doc.exists) {
+        final data = doc.data()!;
         setState(() {
-          firstName = doc['firstName'];
+          firstName = data['firstName'];
         });
+
+        final roomId = data['roomId'];
+        final roomDoc = await FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(roomId)
+            .get();
+        if (roomDoc.exists) {
+          setState(() {
+            apartmentName = roomDoc['apartmentName'];
+          });
+        }
       }
     }
   }
@@ -45,7 +58,9 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Roommate Management'),
+        title: Text(apartmentName != null
+            ? '🏠 $apartmentName'
+            : 'Roommate Management'),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications),

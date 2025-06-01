@@ -1,3 +1,4 @@
+// RoommatesScreen with card-based UI and profile image support
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -42,6 +43,9 @@ class _RoommatesScreenState extends State<RoommatesScreen> {
             'firstName': memberDoc.get('firstName'),
             'lastName': memberDoc.get('lastName'),
             'role': memberDoc.get('role'),
+            'photoUrl': memberDoc.data().toString().contains('photoUrl')
+                ? memberDoc.get('photoUrl')
+                : null,
           });
         }
 
@@ -78,22 +82,47 @@ class _RoommatesScreenState extends State<RoommatesScreen> {
       body: members.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
+              padding: const EdgeInsets.all(12),
               itemCount: members.length,
               itemBuilder: (context, index) {
                 final member = members[index];
-                return ListTile(
-                  title: Text('${member['firstName']} ${member['lastName']}'),
-                  subtitle: Text('Role: ${member['role']}'),
-                  trailing:
-                      (currentUser?.uid == adminId && member['uid'] != adminId)
-                          ? IconButton(
-                              icon: const Icon(Icons.remove_circle,
-                                  color: Colors.red),
-                              onPressed: () {
-                                removeMember(member['uid']);
-                              },
-                            )
-                          : null,
+                return Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: CircleAvatar(
+                      radius: 28,
+                      backgroundImage: member['photoUrl'] != null
+                          ? NetworkImage(member['photoUrl'])
+                          : const AssetImage('assets/logo.png')
+                              as ImageProvider,
+                    ),
+                    title: Text(
+                      '${member['firstName']} ${member['lastName']}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Role: ${member['role']}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    trailing: (currentUser?.uid == adminId &&
+                            member['uid'] != adminId)
+                        ? IconButton(
+                            icon: const Icon(Icons.remove_circle,
+                                color: Colors.red),
+                            onPressed: () {
+                              removeMember(member['uid']);
+                            },
+                          )
+                        : null,
+                  ),
                 );
               },
             ),

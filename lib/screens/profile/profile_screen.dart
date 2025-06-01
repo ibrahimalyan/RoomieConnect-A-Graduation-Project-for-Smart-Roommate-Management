@@ -1,7 +1,10 @@
-// This is a revised version of the profile UI with card styling for each user field and a logo.
+// ProfileScreen with photo upload, cards, and admin-only fields
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -24,6 +27,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   TextEditingController roomPasswordController = TextEditingController();
   DateTime? birthday;
 
+  File? _selectedImage;
+  String? _profileImageUrl;
+  final ImagePicker _picker = ImagePicker();
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         lastNameController.text = userData?['lastName'] ?? '';
         genderController.text = userData?['gender'] ?? '';
         birthday = DateTime.tryParse(userData?['birthday'] ?? '');
+        _profileImageUrl = userData?['photoUrl'];
       });
 
       if (userData != null && userData!['role'] == 'admin') {
@@ -54,6 +62,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
         }
       }
+    }
+  }
+
+  Future<void> uploadProfileImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      final file = File(pickedFile.path);
+      final uid = _auth.currentUser!.uid;
+
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('profile_images')
+          .child('$uid.jpg');
+
+      await storageRef.putFile(file);
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      await _firestore.collection('users').doc(uid).update({
+        'photoUrl': downloadUrl,
+      });
+
+      setState(() {
+        _profileImageUrl = downloadUrl;
+      });
     }
   }
 
@@ -136,10 +168,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            const CircleAvatar(
-              radius: 48,
-              backgroundImage:
-                  AssetImage('assets/logo.png'), // Replace with your logo path
+            GestureDetector(
+              onTap: isEditing ? uploadProfileImage : null,
+              child: CircleAvatar(
+                radius: 48,
+                backgroundImage: _profileImageUrl != null
+                    ? NetworkImage(_profileImageUrl!)
+                    : AssetImage('assets/logo.png') as ImageProvider,
+                child: isEditing
+                    ? Align(
+                        alignment: Alignment.bottomRight,
+                        child: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          radius: 14,
+                          child: Icon(Icons.camera_alt,
+                              size: 18, color: Colors.teal),
+                        ),
+                      )
+                    : null,
+              ),
             ),
             const SizedBox(height: 20),
             buildCard(
