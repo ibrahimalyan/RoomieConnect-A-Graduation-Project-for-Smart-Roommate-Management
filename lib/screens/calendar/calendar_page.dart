@@ -3,31 +3,6 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Roommate Calendar',
-      theme: ThemeData(
-        primarySwatch: Colors.indigo,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        primarySwatch: Colors.indigo,
-        brightness: Brightness.dark,
-      ),
-      themeMode: ThemeMode.system,
-      home: const CalendarPage(),
-    );
-  }
-}
-
 class CalendarPage extends StatefulWidget {
   const CalendarPage({Key? key}) : super(key: key);
 
@@ -40,17 +15,16 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  // Map date -> list of event docs
   Map<DateTime, List<Map<String, dynamic>>> _events = {};
 
-  final _eventsColl = FirebaseFirestore.instance.collection('events');
-
-  // Predefined categories and their colors
   final Map<String, Color> _categoryColors = {
     'Rent': Colors.red,
     'Chores': Colors.blue,
     'Meeting': Colors.green,
     'Other': Colors.orange,
+    'Payment': Colors.purple,
+    'Shopping': Colors.teal,
+    'Task': Colors.brown,
   };
 
   @override
@@ -60,21 +34,91 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _loadEvents() {
-    _eventsColl.snapshots().listen((snap) {
-      final Map<DateTime, List<Map<String, dynamic>>> newEvents = {};
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final Map<DateTime, List<Map<String, dynamic>>> newEvents = {};
+
+    FirebaseFirestore.instance.collection('events').snapshots().listen((snap) {
       for (var doc in snap.docs) {
         final data = doc.data();
         final ts = (data['date'] as Timestamp).toDate();
         final day = DateTime(ts.year, ts.month, ts.day);
-        final ev = {
+
+        newEvents.putIfAbsent(day, () => []).add({
           'id': doc.id,
           'title': data['title'],
           'category': data['category'],
           'doc': doc.reference,
-        };
-        newEvents.putIfAbsent(day, () => []).add(ev);
+          'source': 'event',
+        });
       }
-      setState(() => _events = newEvents);
+
+      FirebaseFirestore.instance
+          .collection('bills')
+          .where('uid', isEqualTo: uid)
+          .snapshots()
+          .listen((snap) {
+        for (var doc in snap.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final dueDate = (data['dueDate'] as Timestamp?)?.toDate();
+          if (dueDate != null) {
+            final day = DateTime(dueDate.year, dueDate.month, dueDate.day);
+            newEvents.putIfAbsent(day, () => []).add({
+              'title': 'Bill: ${data['title']}',
+              'category': 'Payment',
+              'doc': doc.reference,
+              'source': 'bill',
+            });
+          }
+        }
+
+        FirebaseFirestore.instance
+            .collection('shopping')
+            .where('assignedTo', isEqualTo: uid)
+            .snapshots()
+            .listen((snap) {
+          for (var doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
+            if (timestamp != null) {
+              final day =
+                  DateTime(timestamp.year, timestamp.month, timestamp.day);
+              newEvents.putIfAbsent(day, () => []).add({
+                'title': 'Shopping: ${data['item']}',
+                'category': 'Shopping',
+                'doc': doc.reference,
+                'source': 'shopping',
+              });
+            }
+          }
+
+          FirebaseFirestore.instance
+              .collection('tasks')
+              .where('assignedTo', isEqualTo: uid)
+              .snapshots()
+              .listen((snap) {
+            for (var doc in snap.docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
+              if (timestamp != null) {
+                final day =
+                    DateTime(timestamp.year, timestamp.month, timestamp.day);
+                newEvents.putIfAbsent(day, () => []).add({
+                  'title': 'Task: ${data['task']}',
+                  'category': 'Task',
+                  'doc': doc.reference,
+                  'source': 'task',
+                });
+              }
+            }
+
+            setState(() {
+              _events = newEvents;
+            });
+          });
+        });
+      });
     });
   }
 
@@ -82,81 +126,8 @@ class _CalendarPageState extends State<CalendarPage> {
     return _events[DateTime(day.year, day.month, day.day)] ?? [];
   }
 
-  Future<void> _showAddOrEditDialog({
-    Map<String, dynamic>? existing,
-    required DateTime day,
-  }) async {
-    final isEdit = existing != null;
-    final ctrl = TextEditingController(text: existing?['title'] ?? '');
-    String category = existing?['category'] ?? _categoryColors.keys.first;
-
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(isEdit ? 'Edit Event' : 'Add Event'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: ctrl,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: category,
-              items: _categoryColors.keys
-                  .map((c) => DropdownMenuItem(
-                        value: c,
-                        child: Text(c),
-                      ))
-                  .toList(),
-              onChanged: (v) => category = v!,
-              decoration: const InputDecoration(labelText: 'Category'),
-            ),
-          ],
-        ),
-        actions: [
-          if (isEdit)
-            TextButton(
-              onPressed: () async {
-                await existing!['doc'].delete();
-                Navigator.pop(context);
-              },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final title = ctrl.text.trim();
-              if (title.isEmpty) return;
-              final data = {
-                'title': title,
-                'category': category,
-                'date': Timestamp.fromDate(day),
-                'uid': FirebaseAuth.instance.currentUser?.uid,
-                'timestamp': FieldValue.serverTimestamp(),
-              };
-              if (isEdit) {
-                await existing!['doc'].update(data);
-              } else {
-                await _eventsColl.add(data);
-              }
-              Navigator.pop(context);
-            },
-            child: Text(isEdit ? 'Save' : 'Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Responsive spacing
-    final mq = MediaQuery.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Roommate Calendar')),
       body: Column(
@@ -218,15 +189,14 @@ class _CalendarPageState extends State<CalendarPage> {
                 : ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: _getEventsForDay(_selectedDay!).map((ev) {
-                      final color = _categoryColors[ev['category']]!;
+                      final color =
+                          _categoryColors[ev['category']] ?? Colors.grey;
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         child: ListTile(
                           leading: CircleAvatar(backgroundColor: color),
-                          title: Text(ev['title']),
-                          subtitle: Text(ev['category']),
-                          onTap: () => _showAddOrEditDialog(
-                              existing: ev, day: _selectedDay!),
+                          title: Text(ev['title'] ?? 'No Title'),
+                          subtitle: Text(ev['category'] ?? 'Unknown'),
                         ),
                       );
                     }).toList(),
@@ -234,12 +204,6 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
         ],
       ),
-      floatingActionButton: _selectedDay == null
-          ? null
-          : FloatingActionButton(
-              onPressed: () => _showAddOrEditDialog(day: _selectedDay!),
-              child: const Icon(Icons.add),
-            ),
     );
   }
 }

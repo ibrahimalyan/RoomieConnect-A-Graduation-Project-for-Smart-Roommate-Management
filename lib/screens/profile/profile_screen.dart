@@ -1,4 +1,3 @@
-// ProfileScreen with photo upload, cards, and admin-only fields
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -29,7 +28,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   File? _selectedImage;
   String? _profileImageUrl;
+  bool isAssetAvatar = false;
   final ImagePicker _picker = ImagePicker();
+
+  final List<String> avatarList = List.generate(
+    10,
+    (index) => 'assets/avatar${index + 1}.jpg',
+  );
 
   @override
   void initState() {
@@ -49,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         genderController.text = userData?['gender'] ?? '';
         birthday = DateTime.tryParse(userData?['birthday'] ?? '');
         _profileImageUrl = userData?['photoUrl'];
+        isAssetAvatar = userData?['isAssetAvatar'] ?? false;
       });
 
       if (userData != null && userData!['role'] == 'admin') {
@@ -81,10 +87,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       await _firestore.collection('users').doc(uid).update({
         'photoUrl': downloadUrl,
+        'isAssetAvatar': false,
       });
 
       setState(() {
         _profileImageUrl = downloadUrl;
+        isAssetAvatar = false;
       });
     }
   }
@@ -97,6 +105,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'lastName': lastNameController.text,
         'gender': genderController.text,
         'birthday': birthday?.toIso8601String(),
+        'photoUrl': _profileImageUrl,
+        'isAssetAvatar': isAssetAvatar,
       });
 
       if (userData != null && userData!['role'] == 'admin') {
@@ -173,8 +183,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: CircleAvatar(
                 radius: 48,
                 backgroundImage: _profileImageUrl != null
-                    ? NetworkImage(_profileImageUrl!)
-                    : AssetImage('assets/logo.png') as ImageProvider,
+                    ? (isAssetAvatar
+                        ? AssetImage(_profileImageUrl!)
+                        : NetworkImage(_profileImageUrl!)) as ImageProvider
+                    : const AssetImage('assets/logo.png'),
                 child: isEditing
                     ? Align(
                         alignment: Alignment.bottomRight,
@@ -189,6 +201,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            if (isEditing)
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: avatarList.map((path) {
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _profileImageUrl = path;
+                        isAssetAvatar = true;
+                      });
+                    },
+                    child: CircleAvatar(
+                      radius: 28,
+                      backgroundColor:
+                          _profileImageUrl == path ? Colors.teal : null,
+                      child: CircleAvatar(
+                        radius: 24,
+                        backgroundImage: AssetImage(path),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            const SizedBox(height: 10),
             buildCard(
               icon: Icons.person,
               label: 'First Name',
