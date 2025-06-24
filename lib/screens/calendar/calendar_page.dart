@@ -152,11 +152,20 @@ class _CalendarPageState extends State<CalendarPage> {
                 return Container(
                   margin: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: hasEvents ? Colors.indigo.shade100 : null,
+                    color: hasEvents
+                        ? Colors.red
+                        : null, // 🔴 Highlight marked dates
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: Text('${day.day}'),
+                  child: Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      color: hasEvents ? Colors.white : null,
+                      fontWeight:
+                          hasEvents ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
                 );
               },
               todayBuilder: (ctx, day, _) => Container(
